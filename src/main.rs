@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use axum::Json;
 
 // #[get("/")]
 // async fn hello() -> impl Responder {
@@ -25,7 +25,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 // }
 
 #[post("/ffmpeg")]
-async fn ffmpeg_page(path: web::Json<Ytdlp>) -> impl Responder {
+async fn ffmpeg_page(path: Json<Ytdlp>) -> impl Responder {
     use std::process;
 
     println!("got ffmpeg");
