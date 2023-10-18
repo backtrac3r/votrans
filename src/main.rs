@@ -3,6 +3,8 @@ mod error;
 mod helpers;
 mod routes;
 
+use std::sync::Arc;
+
 use app_data::AppData;
 use axum::{routing::post, Router};
 use routes::{ffmpeg_page, full_cycle, vosk_page, yt_dlp};
@@ -14,7 +16,7 @@ async fn main() {
         .route("/yt", post(yt_dlp))
         .route("/vosk", post(vosk_page))
         .route("/full", post(full_cycle))
-        .with_state(AppData::new());
+        .with_state(Arc::new(AppData::new()));
 
     axum::Server::bind(&"127.0.0.1:8080".parse().unwrap())
         .serve(app.into_make_service())

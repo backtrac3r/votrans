@@ -4,8 +4,8 @@ use crate::{
     helpers::{vosk_wav, Ytdlp},
 };
 use axum::{extract::State, http::StatusCode, Json};
-use std::path::PathBuf;
 use std::process;
+use std::{path::PathBuf, sync::Arc};
 use ytd_rs::{Arg, YoutubeDL};
 
 pub async fn ffmpeg_page(path: Json<Ytdlp>) -> Result<String, AppErr> {
@@ -55,7 +55,7 @@ pub async fn ffmpeg_page(path: Json<Ytdlp>) -> Result<String, AppErr> {
     Ok(format!("{output_name}.wav"))
 }
 
-pub async fn yt_dlp(State(data): State<AppData>, url: Json<Ytdlp>) -> Result<String, AppErr> {
+pub async fn yt_dlp(State(data): State<Arc<AppData>>, url: Json<Ytdlp>) -> Result<String, AppErr> {
     println!("got reqwest {}", url.url);
     let output_name = format!("temp{}", data.temp_counter.lock().await);
     *data.temp_counter.lock().await += 1;
@@ -95,7 +95,10 @@ pub async fn vosk_page(url: Json<Ytdlp>) -> Result<String, AppErr> {
     vosk_wav(url.url.clone())
 }
 
-pub async fn full_cycle(State(data): State<AppData>, url: Json<Ytdlp>) -> Result<String, AppErr> {
+pub async fn full_cycle(
+    State(data): State<Arc<AppData>>,
+    url: Json<Ytdlp>,
+) -> Result<String, AppErr> {
     // YT_DLP
     println!("got reqwest {}", url.url);
     let output_name = format!("temp{}", data.temp_counter.lock().await);
