@@ -27,6 +27,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.75"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
+
+[[package]]
 name = "async-trait"
 version = "0.1.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -653,6 +659,7 @@ checksum = "4119af93ca109482d71c6c01511a88c93131fcfdcf4ab4f5f1d8e4e4f5099d29"
 name = "votrans"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "hound",
  "serde",

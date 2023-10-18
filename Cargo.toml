@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 axum = "*"
+anyhow = "*"
 hound = "*"
 serde = { version = "*", features = ["derive"] }
 vosk = "*"
