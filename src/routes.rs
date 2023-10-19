@@ -6,7 +6,7 @@ use crate::{
 use axum::{extract::State, http::StatusCode, Json};
 use std::process;
 use std::{path::PathBuf, sync::Arc};
-use ytd_rs::{Arg, YoutubeDL};
+use youtube_dl::YoutubeDl;
 
 pub async fn ffmpeg_page(path: Json<Ytdlp>) -> Result<String, AppErr> {
     // println!("got ffmpeg");
@@ -60,21 +60,12 @@ pub async fn yt_dlp(State(data): State<Arc<AppData>>, url: Json<Ytdlp>) -> Resul
     let output_name = format!("temp{}", data.temp_counter.lock().await);
     *data.temp_counter.lock().await += 1;
 
-    let args = vec![
-        Arg::new("--quiet"),
-        Arg::new_with_arg("--output", format!("{output_name}.%(ext)s").as_str()),
-    ];
     // let link = "https://www.youtube.com/watch?v=uTO0KnDsVH0";
     let path = PathBuf::from("./downloads");
-    let ytd = YoutubeDL::new(&path, args, &url.url).map_err(|e| {
-        AppErr::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Could not create downloader: {e}"),
-        )
-    })?;
+    let ytd = YoutubeDl::new(&url.url);
 
     // start download
-    let download = ytd.download().map_err(|e| {
+    ytd.download_to(path).map_err(|e| {
         AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Could not download video: {e}"),
@@ -82,11 +73,7 @@ pub async fn yt_dlp(State(data): State<Arc<AppData>>, url: Json<Ytdlp>) -> Resul
     })?;
 
     // print out the download path
-    println!(
-        "Your download: {},\n filename: {}",
-        download.output_dir().to_string_lossy(),
-        output_name
-    );
+    println!("Your download filename: {output_name}");
 
     Ok(format!("{output_name}.webm"))
 }
@@ -105,31 +92,21 @@ pub async fn full_cycle(
     *data.temp_counter.lock().await += 1;
     dbg!();
 
-    let args = vec![
-        Arg::new("--quiet"),
-        Arg::new_with_arg("--output", format!("{output_name}.%(ext)s").as_str()),
-    ];
     dbg!();
     // let link = "https://www.youtube.com/watch?v=uTO0KnDsVH0";
     dbg!();
     let path = PathBuf::from("./downloads");
     dbg!();
-    let ytd = YoutubeDL::new(&path, args, &url.url)
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let ytd = YoutubeDl::new(&url.url);
     dbg!();
 
     // start download
-    let download = ytd
-        .download()
+    ytd.download_to(path)
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     dbg!();
 
     // print out the download path
-    println!(
-        "Your download: {},\n filename: {}",
-        download.output_dir().to_string_lossy(),
-        output_name
-    );
+    println!("Your download filename: {output_name}");
 
     // FFMPEG
     // println!("got ffmpeg");

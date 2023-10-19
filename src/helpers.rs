@@ -12,7 +12,7 @@ pub struct Ytdlp {
 #[allow(clippy::cast_precision_loss)]
 pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
     // let model_path = "/home/zbykovd/Downloads/vosk-model-small-ru-0.22";
-    let model_path = "./model/";
+    let model_path = "./model/vosk-model-small-ru-0.22";
     // let model_path = "/home/zbykovd/Downloads/vosk-model-en-us-0.22/";
 
     // let wav_path = "/home/zbykovd/projects/job/votrans/ffmpeg/temp0.wav";
