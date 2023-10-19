@@ -4,7 +4,7 @@ use crate::{
     helpers::{vosk_wav, Ytdlp},
 };
 use axum::{extract::State, http::StatusCode, Json};
-use std::process;
+use std::{env::current_dir, process};
 use std::{path::PathBuf, sync::Arc};
 use youtube_dl::YoutubeDl;
 
@@ -96,13 +96,15 @@ pub async fn full_cycle(
     // let link = "https://www.youtube.com/watch?v=uTO0KnDsVH0";
     dbg!();
     let path = PathBuf::from("./downloads");
-    dbg!();
-    let ytd = YoutubeDl::new(&url.url);
+    let mut ytd = YoutubeDl::new(&url.url);
     dbg!();
 
     // start download
-    ytd.download_to(path)
+    ytd.output_template(output_name.clone())
+        .download_to_async(path)
+        .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     dbg!();
 
     // print out the download path
@@ -120,7 +122,7 @@ pub async fn full_cycle(
         .ok_or_else(|| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "invalid url"))?;
 
     dbg!();
-    let output_path_and_name = format!("./ffmpeg/{name_without_ext}.wav");
+    let output_path_and_name = format!("./downloads/{name_without_ext}.wav");
 
     dbg!();
     let mut ffmpeg = process::Command::new("ffmpeg")

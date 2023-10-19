@@ -77,7 +77,6 @@ pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
     })?;
 
     dbg!();
-    println!("{:#?}", res.text);
     println!("vosk done");
 
     Ok(res.text.to_string())
