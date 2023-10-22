@@ -1,8 +1,8 @@
+use crate::error::AppErr;
 use axum::http::StatusCode;
 use hound::WavReader;
+use tokio::process::Command;
 use vosk::{Model, Recognizer};
-
-use crate::error::AppErr;
 
 #[derive(serde::Deserialize)]
 pub struct Ytdlp {
@@ -10,22 +10,13 @@ pub struct Ytdlp {
 }
 
 #[allow(clippy::cast_precision_loss)]
-pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
-    // let model_path = "/home/zbykovd/Downloads/vosk-model-small-ru-0.22";
-    let model_path = "./model/vosk-model-small-ru-0.22";
-    // let model_path = "/home/zbykovd/Downloads/vosk-model-en-us-0.22/";
-
-    // let wav_path = "/home/zbykovd/projects/job/votrans/ffmpeg/temp0.wav";
-    // let wav_path = "/home/zbykovd/projects/job/vosk-rs/file.wav";
-
-    dbg!();
+pub fn vosk_wav(wav_path: String, model_path: &str) -> Result<String, AppErr> {
     let mut reader = WavReader::open(wav_path).map_err(|e| {
         AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Could not create the WAV reader: {e}"),
         )
     })?;
-    dbg!();
 
     let samples = reader
         .samples()
@@ -37,7 +28,6 @@ pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
             )
         })?;
 
-    dbg!();
     let model = Model::new(model_path).ok_or_else(|| {
         AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -45,7 +35,6 @@ pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
         )
     })?;
 
-    dbg!();
     let mut recognizer =
         Recognizer::new(&model, reader.spec().sample_rate as f32).ok_or_else(|| {
             AppErr::new(
@@ -53,22 +42,18 @@ pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
                 "Could not create the recognizer",
             )
         })?;
-    dbg!();
 
     recognizer.set_max_alternatives(0);
     recognizer.set_words(true);
     recognizer.set_partial_words(true);
 
-    dbg!();
     // for sample in samples.chunks(1000).skip(500) {
     //     recognizer.accept_waveform(sample);
     //     println!("{:#?}", recognizer.partial_result());
     // }
 
-    dbg!();
     recognizer.accept_waveform(&samples);
 
-    dbg!();
     let res = recognizer.final_result().single().ok_or_else(|| {
         AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -76,8 +61,56 @@ pub fn vosk_wav(wav_path: String) -> Result<String, AppErr> {
         )
     })?;
 
-    dbg!();
-    println!("vosk done");
-
     Ok(res.text.to_string())
+}
+
+pub fn file_ext_from_url(url: &str) -> Result<String, AppErr> {
+    let ext = if url.contains("youtu.be") || url.contains("youtube.com") {
+        String::from("opus")
+    } else if url.contains("vk.com") {
+        String::from("m4a")
+    } else {
+        return Err(AppErr::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "err while get file ext from url",
+        ));
+    };
+
+    Ok(ext)
+}
+
+pub async fn convert_to_wav(
+    ffmpeg_input_file_path: &str,
+    ffmpeg_output_file_path: &str,
+) -> Result<(), AppErr> {
+    Command::new("ffmpeg")
+        .args(vec![
+            "-y",
+            "-i",
+            &ffmpeg_input_file_path,
+            "-ac",
+            "1",
+            &ffmpeg_output_file_path,
+        ])
+        .status()
+        .await
+        .map_err(|e| {
+            AppErr::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("err while spawn ffmpeg task: {e}"),
+            )
+        })?;
+
+    Command::new("rm")
+        .arg(ffmpeg_input_file_path)
+        .status()
+        .await
+        .map_err(|e| {
+            AppErr::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("err while spawn ffmpeg task: {e}"),
+            )
+        })?;
+
+    Ok(())
 }

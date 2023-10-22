@@ -1,5 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 
+#[derive(Debug)]
 pub struct AppErr {
     pub code: StatusCode,
     pub msg: String,
