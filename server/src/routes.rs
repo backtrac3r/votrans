@@ -1,7 +1,7 @@
 use crate::{
     app_data::AppData,
     error::AppErr,
-    helpers::{convert_to_wav, file_ext_from_url, vosk_wav},
+    helpers::{convert_to_wav, ext_by_name, vosk_wav},
 };
 use axum::{extract::State, http::StatusCode, Json};
 use std::{path::PathBuf, sync::Arc};
@@ -28,9 +28,11 @@ pub async fn full_cycle(
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let ext = file_ext_from_url(&req.url)?;
+    let file_path = format!("./{}/{output_name}", data.audio_folder);
 
-    let ffmpeg_input_file_path = format!("./{}/{output_name}.{ext}", data.audio_folder);
+    let ext = ext_by_name(&data.audio_folder, &output_name)?;
+
+    let ffmpeg_input_file_path = format!("{file_path}.{ext}");
     let ffmpeg_output_file_path = format!("./{}/{output_name}.wav", data.audio_folder);
 
     convert_to_wav(&ffmpeg_input_file_path, &ffmpeg_output_file_path).await?;

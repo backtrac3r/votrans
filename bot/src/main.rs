@@ -64,11 +64,9 @@ async fn start(bot: Bot, _dialogue: MyDialogue, data: Arc<Config>, msg: Message)
         .post(url)
         .json(&req_body)
         .send()
-        .await
-        .unwrap()
+        .await?
         .text()
-        .await
-        .unwrap();
+        .await?;
 
     bot.send_message(chat_id, resp).await?;
 

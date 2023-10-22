@@ -1,6 +1,7 @@
 use crate::error::AppErr;
 use axum::http::StatusCode;
 use hound::WavReader;
+use std::{fs::read_dir, result::Result};
 use tokio::process::Command;
 use vosk::{Model, Recognizer};
 
@@ -59,19 +60,32 @@ pub fn vosk_wav(wav_path: String, model_path: &str) -> Result<String, AppErr> {
     Ok(res.text.to_string())
 }
 
-pub fn file_ext_from_url(url: &str) -> Result<String, AppErr> {
-    let ext = if url.contains("youtu.be") || url.contains("youtube.com") {
-        String::from("opus")
-    } else if url.contains("vk.com") {
-        String::from("m4a")
-    } else {
-        return Err(AppErr::new(
+pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
+    let dir = read_dir(path).map_err(|e| {
+        AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "err while get file ext from url",
-        ));
-    };
+            format!("error while read dir: {e}"),
+        )
+    })?;
 
-    Ok(ext)
+    let dir = dir.filter_map(Result::ok);
+
+    for file in dir {
+        let p = file.path().to_string_lossy().into_owned();
+        println!("{p}");
+        if p.contains(file_name) {
+            return Ok(file
+                .path()
+                .extension()
+                .ok_or_else(|| {
+                    AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "error while read ext")
+                })?
+                .to_string_lossy()
+                .into_owned());
+        }
+    }
+
+    Err(AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "no file"))
 }
 
 pub async fn convert_to_wav(
