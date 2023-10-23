@@ -52,6 +52,8 @@ async fn start(bot: Bot, _dialogue: MyDialogue, data: Arc<Config>, msg: Message)
             "Отправь мне ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
         )
         .await?;
+
+        return Ok(());
     }
 
     let url = format!("http://localhost:{}/full", data.server_port);

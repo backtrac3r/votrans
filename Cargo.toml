@@ -1,6 +1,6 @@
 [workspace]
-
 members = [
   "server",
   "bot",
 ]
+resolver = "2"
