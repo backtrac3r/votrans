@@ -2,7 +2,7 @@ use std::env;
 use tokio::sync::Mutex;
 
 pub struct AppData {
-    pub temp_counter: Mutex<u32>,
+    pub temp_counter: Mutex<u64>,
     pub audio_folder: String,
     pub model_path: String,
 }

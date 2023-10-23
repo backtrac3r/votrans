@@ -1,43 +1,22 @@
-use crate::{
-    app_data::AppData,
-    error::AppErr,
-    helpers::{convert_to_wav, ext_by_name, vosk_wav},
-};
-use axum::{extract::State, http::StatusCode, Json};
-use std::{path::PathBuf, sync::Arc};
-use youtube_dl::YoutubeDl;
+use crate::{app_data::AppData, error::AppErr, helpers::full_cycle};
+use axum::{extract::State, Json};
+use std::sync::Arc;
 
 #[derive(serde::Deserialize)]
 pub struct Ytdlp {
     pub url: String,
 }
 
-pub async fn full_cycle(
+pub async fn full_cycle_handler(
     State(data): State<Arc<AppData>>,
     Json(req): Json<Ytdlp>,
 ) -> Result<String, AppErr> {
-    let output_name = format!("temp{}", data.temp_counter.lock().await);
-    *data.temp_counter.lock().await += 1;
+    let mut counter_g = data.temp_counter.lock().await;
+    *counter_g += 1;
+    let counter = *counter_g;
+    drop(counter_g);
 
-    let path = PathBuf::from(&data.audio_folder);
-    let mut ytd = YoutubeDl::new(&req.url);
-
-    ytd.output_template(output_name.clone())
-        .extract_audio(true)
-        .download_to_async(path)
-        .await
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let file_path = format!("./{}/{output_name}", data.audio_folder);
-
-    let ext = ext_by_name(&data.audio_folder, &output_name)?;
-
-    let ffmpeg_input_file_path = format!("{file_path}.{ext}");
-    let ffmpeg_output_file_path = format!("./{}/{output_name}.wav", data.audio_folder);
-
-    convert_to_wav(&ffmpeg_input_file_path, &ffmpeg_output_file_path).await?;
-
-    vosk_wav(ffmpeg_output_file_path, &data.model_path)
+    full_cycle(counter, &data.audio_folder, &data.model_path, &req.url).await
 }
 
 // pub async fn ffmpeg_page(Json(path): Json<Ytdlp>) -> Result<String, AppErr> {
