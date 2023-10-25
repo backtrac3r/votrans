@@ -76,12 +76,11 @@ async fn start(
             }
         };
 
-        let mut file_bytes = Vec::new();
-        bot.download_file(&file.path, &mut file_bytes);
+        let file_stream = bot.download_file_stream(&file.path);
 
         let url = format!("http://localhost:{}/file_tt", app_data.server_port);
 
-        let part = multipart::Part::stream(file_bytes);
+        let part = multipart::Part::stream(file_stream.into());
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();

@@ -3,7 +3,6 @@ use crate::error::AppErr;
 use axum::http::StatusCode;
 use reqwest::Body;
 use std::{fs::read_dir, path::PathBuf, result::Result};
-use tokio::io::AsyncReadExt;
 use youtube_dl::YoutubeDl;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -29,6 +28,7 @@ pub struct SttResp {
 pub struct N0 {
     #[serde(rename = "file_name")]
     pub file_name: String,
+    #[serde(rename = "text")]
     pub text: String,
 }
 
@@ -37,6 +37,7 @@ pub struct N0 {
 pub struct N1 {
     #[serde(rename = "file_name")]
     pub file_name: String,
+    #[serde(rename = "text")]
     pub text: String,
 }
 
@@ -56,11 +57,9 @@ pub async fn full_cycle(counter: u64, url: &str, app_data: &AppData) -> Result<S
 
     let file_name = format!("{file_name}.{ext}");
     let file_path = format!("./{}/{file_name}", app_data.audio_folder);
-    let mut file_fs = tokio::fs::File::open(file_path).await.unwrap();
-    let mut file_bytes = Vec::new();
-    file_fs.read_buf(&mut file_bytes).await.unwrap();
+    let file_fs = tokio::fs::File::open(file_path).await.unwrap();
 
-    file_tt(&file_name, file_bytes, app_data).await
+    file_tt(&file_name, file_fs, app_data).await
 }
 
 pub async fn file_tt(
