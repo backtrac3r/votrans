@@ -2,8 +2,14 @@ mod bot_state;
 
 use api::Ytdlp;
 use bot_state::Config;
+use reqwest::{header, multipart};
 use std::sync::Arc;
-use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
+use teloxide::{
+    dispatching::dialogue::InMemStorage,
+    net::Download,
+    prelude::*,
+    types::{MediaKind, MessageKind},
+};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -37,11 +43,62 @@ async fn main() {
     .await;
 }
 
-async fn start(bot: Bot, _dialogue: MyDialogue, data: Arc<Config>, msg: Message) -> HandlerResult {
+async fn start(
+    bot: Bot,
+    _dialogue: MyDialogue,
+    app_data: Arc<Config>,
+    msg: Message,
+) -> HandlerResult {
     let chat_id = msg.chat.id;
 
     let Some(txt) = msg.text() else {
-        bot.send_message(chat_id, "Нужно отправить текст").await?;
+        let MessageKind::Common(common_msg) = msg.kind else {
+            bot.send_message(
+                chat_id,
+                "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+            )
+            .await?;
+            return Ok(());
+        };
+
+        bot.send_message(chat_id, "Начал обработку").await?;
+
+        let file = match common_msg.media_kind {
+            MediaKind::Video(v) => bot.get_file(&v.video.file.id).await.unwrap(),
+            MediaKind::Voice(v) => bot.get_file(&v.voice.file.id).await.unwrap(),
+            _ => {
+                bot.send_message(
+                    chat_id,
+                    "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+                )
+                .await?;
+                return Ok(());
+            }
+        };
+
+        let mut file_bytes = Vec::new();
+        bot.download_file(&file.path, &mut file_bytes);
+
+        let url = format!("http://localhost:{}/file_tt", app_data.server_port);
+
+        let part = multipart::Part::stream(file_bytes);
+        let form = multipart::Form::new().part("file", part);
+
+        let mut headers = header::HeaderMap::new();
+        headers.insert("accept", "application/json".parse().unwrap());
+
+        let response = app_data
+            .client
+            .post(url)
+            .headers(headers.clone())
+            .multipart(form)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        bot.send_message(chat_id, response).await?;
+
         return Ok(());
     };
 
@@ -55,12 +112,20 @@ async fn start(bot: Bot, _dialogue: MyDialogue, data: Arc<Config>, msg: Message)
         return Ok(());
     }
 
-    let url = format!("http://localhost:{}/full", data.server_port);
+    if !(txt.contains("youtube.com") || txt.contains("youtu.be") || txt.contains("vk.com")) {
+        bot.send_message(chat_id, "это не похоже на ссылку").await?;
+
+        return Ok(());
+    }
+
     let req_body = Ytdlp {
         url: txt.to_string(),
     };
 
-    let resp = data
+    bot.send_message(chat_id, "Начал обработку").await?;
+
+    let url = format!("http://localhost:{}/url_tt", app_data.server_port);
+    let resp = app_data
         .client
         .post(url)
         .json(&req_body)

@@ -3,9 +3,10 @@ mod error;
 mod helpers;
 mod routes;
 
+use crate::routes::file_tt_handler;
 use app_data::AppData;
-use axum::{routing::post, Router};
-use routes::full_cycle_handler;
+use axum::{extract::DefaultBodyLimit, routing::post, Router};
+use routes::url_tt_handler;
 use std::{env, sync::Arc};
 use tokio::fs;
 
@@ -20,15 +21,16 @@ async fn main() {
     fs::create_dir(&app_data.audio_folder).await.unwrap();
 
     let app = Router::new()
-        .route("/full", post(full_cycle_handler))
-        // .route("/ffmpeg", post(ffmpeg_page))
-        // .route("/yt", post(yt_dlp))
-        // .route("/vosk", post(vosk_page))
+        .route("/url_tt", post(url_tt_handler))
+        .route("/file_tt", post(file_tt_handler))
+        .layer(DefaultBodyLimit::max(100_000_000))
         .with_state(app_data);
 
     let addr = &format!("0.0.0.0:{}", env::var("SERVER_PORT").unwrap())
         .parse()
         .unwrap();
+
+    println!("server online");
 
     axum::Server::bind(addr)
         .serve(app.into_make_service())

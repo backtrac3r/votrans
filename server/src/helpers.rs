@@ -1,11 +1,9 @@
 use crate::app_data::AppData;
 use crate::error::AppErr;
 use axum::http::StatusCode;
-use reqwest::header;
-use reqwest::multipart;
-use reqwest::Client;
-use std::env;
+use reqwest::Body;
 use std::{fs::read_dir, path::PathBuf, result::Result};
+use tokio::io::AsyncReadExt;
 use youtube_dl::YoutubeDl;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -42,88 +40,60 @@ pub struct N1 {
     pub text: String,
 }
 
-pub async fn full_cycle(counter: u64, url: &str, data: &AppData) -> Result<String, AppErr> {
-    let output_name = format!("temp{counter}");
+pub async fn full_cycle(counter: u64, url: &str, app_data: &AppData) -> Result<String, AppErr> {
+    let file_name = format!("temp{counter}");
 
-    let path = PathBuf::from(&data.audio_folder);
+    let path = PathBuf::from(&app_data.audio_folder);
     let mut ytd = YoutubeDl::new(url);
 
-    ytd.output_template(output_name.clone())
+    ytd.output_template(file_name.clone())
         .extract_audio(true)
         .download_to_async(path)
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let ext = ext_by_name(&data.audio_folder, &output_name)?;
+    let ext = ext_by_name(&app_data.audio_folder, &file_name)?;
 
-    let file_name = format!("{output_name}.{ext}");
-    let file_path = format!("./{}/{file_name}", data.audio_folder);
+    let file_name = format!("{file_name}.{ext}");
+    let file_path = format!("./{}/{file_name}", app_data.audio_folder);
+    let mut file_fs = tokio::fs::File::open(file_path).await.unwrap();
+    let mut file_bytes = Vec::new();
+    file_fs.read_buf(&mut file_bytes).await.unwrap();
 
-    file_to_txt(&file_name, &file_path, data).await
+    file_tt(&file_name, file_bytes, app_data).await
 }
 
-#[allow(clippy::cast_precision_loss)]
-pub async fn file_to_txt(
+pub async fn file_tt(
     file_name: &str,
-    file_path: &str,
-    data: &AppData,
+    file_bytes: impl Into<Body>,
+    app_data: &AppData,
 ) -> Result<String, AppErr> {
-    let file_fs = tokio::fs::File::open(file_path).await.unwrap();
-    let part = multipart::Part::stream(file_fs)
-        .file_name(file_name.to_string())
-        .mime_str("audio/x-m4a")
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let result = app_data.do_file_tt_req(file_name, file_bytes).await;
+    dbg!();
 
-    let form = multipart::Form::new().part("file", part);
-
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse().unwrap());
-
-    let request = data
-        .client
-        .post("http://asrdemo.devmachine.tech/operation/get_text")
-        .bearer_auth(data.jwt.read().await)
-        .query(&[("language", "ru")])
-        .headers(headers.clone())
-        .multipart(form);
-
-    let result = request.send().await;
     let response = if let Ok(r) = result {
+        dbg!();
         r
     } else {
-        data.update_jwt().await?;
+        app_data.update_jwt().await?;
+        dbg!();
+        return Err(AppErr::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "jwt expired",
+        ));
 
-        let file_fs = tokio::fs::File::open(file_path)
-            .await
-            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-        let part = multipart::Part::stream(file_fs)
-            .file_name(file_name.to_string())
-            .mime_str("audio/x-m4a")
-            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-        let form = multipart::Form::new().part("file", part);
-
-        let request = data
-            .client
-            .post("http://asrdemo.devmachine.tech/operation/get_text")
-            .bearer_auth(data.jwt.read().await)
-            .query(&[("language", "ru")])
-            .headers(headers)
-            .multipart(form);
-
-        request
-            .bearer_auth(data.jwt.read().await)
-            .send()
-            .await
-            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        // app_data
+        //     .do_file_tt_req(file_name, file_bytes)
+        //     .await
+        //     .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     };
 
+    dbg!();
     let response: SttResp = response
         .json()
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    // .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    dbg!();
 
     Ok(response.ch1.text)
 }
@@ -153,27 +123,4 @@ pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
     }
 
     Err(AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "no file"))
-}
-
-pub async fn get_new_jwt() -> Result<String, AppErr> {
-    let mut headers = header::HeaderMap::new();
-    headers.insert("accept", "application/json".parse().unwrap());
-
-    let log = env::var("AUTH_LOGIN").unwrap();
-    let pass = env::var("AUTH_PASSWORD").unwrap();
-
-    let client = Client::new();
-    let resp: AuthResp = client
-        .post(format!(
-            "http://asrdemo.devmachine.tech/auth/sign-in?username={log}&password={pass}"
-        ))
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .json()
-        .await
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(resp.access_token)
 }

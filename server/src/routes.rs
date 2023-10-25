@@ -1,83 +1,41 @@
-use crate::{app_data::AppData, error::AppErr, helpers::full_cycle};
+use crate::{
+    app_data::AppData,
+    error::AppErr,
+    helpers::{file_tt, full_cycle},
+};
 use api::Ytdlp;
-use axum::{extract::State, Json};
+use axum::{
+    extract::{Multipart, State},
+    Json,
+};
 use std::sync::Arc;
 
-pub async fn full_cycle_handler(
-    State(data): State<Arc<AppData>>,
+pub async fn url_tt_handler(
+    State(app_data): State<Arc<AppData>>,
     Json(req): Json<Ytdlp>,
 ) -> Result<String, AppErr> {
-    let mut counter_g = data.temp_counter.lock().await;
-    *counter_g += 1;
-    let counter = *counter_g;
-    drop(counter_g);
+    println!("new url_tt req");
+    let counter = app_data.get_counter().await;
 
-    full_cycle(counter, &req.url, &data).await
+    full_cycle(counter, &req.url, &app_data).await
 }
 
-// pub async fn ffmpeg_page(Json(path): Json<Ytdlp>) -> Result<String, AppErr> {
-//     let input_path = format!("./downloads/{}", path.url);
+pub async fn file_tt_handler(
+    State(app_data): State<Arc<AppData>>,
+    mut multipart: Multipart,
+) -> Result<String, AppErr> {
+    println!("new file_tt req");
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let Ok(file_bytes) = field.bytes().await else {
+            continue;
+        };
 
-//     let name_without_ext = path
-//         .url
-//         .split('.')
-//         .next()
-//         .ok_or_else(|| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "invalid url"))?;
+        let counter = app_data.get_counter().await;
 
-//     let output_name = format!("./ffmpeg/{name_without_ext}.wav");
+        let file_name = format!("temp{counter}");
 
-//     let mut ffmpeg = process::Command::new("ffmpeg")
-//         .args(vec![
-//             "-y",
-//             "-i",
-//             &input_path,
-//             "-map",
-//             "0:a",
-//             "-ac",
-//             "1",
-//             &output_name,
-//         ])
-//         .spawn()
-//         .map_err(|e| {
-//             AppErr::new(
-//                 StatusCode::INTERNAL_SERVER_ERROR,
-//                 format!("err while spawn ffmpeg task: {e}"),
-//             )
-//         })?;
+        return file_tt(&file_name, file_bytes, &app_data).await;
+    }
 
-//     ffmpeg.wait().map_err(|e| {
-//         AppErr::new(
-//             StatusCode::INTERNAL_SERVER_ERROR,
-//             format!("ffmpeg err: {e}"),
-//         )
-//     })?;
-
-//     Ok(format!("{output_name}.wav"))
-// }
-
-// pub async fn yt_dlp(
-//     State(data): State<Arc<AppData>>,
-//     Json(url): Json<Ytdlp>,
-// ) -> Result<String, AppErr> {
-//     let output_name = format!("temp{}", data.temp_counter.lock().await);
-//     *data.temp_counter.lock().await += 1;
-
-//     let path = PathBuf::from("./downloads");
-//     let ytd = YoutubeDl::new(&url.url);
-
-//     ytd.download_to(path).map_err(|e| {
-//         AppErr::new(
-//             StatusCode::INTERNAL_SERVER_ERROR,
-//             format!("Could not download video: {e}"),
-//         )
-//     })?;
-
-//     Ok(format!("{output_name}.webm"))
-// }
-
-// pub async fn vosk_page(
-//     State(data): State<Arc<AppData>>,
-//     url: Json<Ytdlp>,
-// ) -> Result<String, AppErr> {
-//     vosk_wav(url.url.clone(), &data.model_path)
-// }
+    Ok(String::new())
+}

@@ -9,7 +9,7 @@ edition = "2021"
 dotenvy = "*"
 tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 reqwest = { version = "*", features = ["multipart", "blocking", "json"] }
-axum = "*"
+axum = { version = "*", features = ["multipart"] }
 serde = { version = "*", features = ["derive"] }
 youtube_dl = { version = "*", features = ["tokio"] }
 
