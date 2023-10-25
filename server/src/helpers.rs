@@ -1,20 +1,51 @@
+use crate::app_data::AppData;
 use crate::error::AppErr;
 use axum::http::StatusCode;
-use hound::WavReader;
+use reqwest::blocking::multipart;
+use reqwest::header;
+use reqwest::Client;
+use std::env;
 use std::{fs::read_dir, path::PathBuf, result::Result};
-use tokio::process::Command;
-use vosk::{Model, Recognizer};
 use youtube_dl::YoutubeDl;
 
-pub async fn full_cycle(
-    counter: u64,
-    audio_folder: &str,
-    model_path: &str,
-    url: &str,
-) -> Result<String, AppErr> {
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthResp {
+    #[serde(rename = "access_token")]
+    pub access_token: String,
+    #[serde(rename = "token_type")]
+    pub token_type: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SttResp {
+    #[serde(rename = "0")]
+    pub ch1: N0,
+    #[serde(rename = "1")]
+    pub ch2: N1,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct N0 {
+    #[serde(rename = "file_name")]
+    pub file_name: String,
+    pub text: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct N1 {
+    #[serde(rename = "file_name")]
+    pub file_name: String,
+    pub text: String,
+}
+
+pub async fn full_cycle(counter: u64, url: &str, data: &AppData) -> Result<String, AppErr> {
     let output_name = format!("temp{counter}");
 
-    let path = PathBuf::from(&audio_folder);
+    let path = PathBuf::from(&data.audio_folder);
     let mut ytd = YoutubeDl::new(url);
 
     ytd.output_template(output_name.clone())
@@ -23,65 +54,56 @@ pub async fn full_cycle(
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let file_path = format!("./{audio_folder}/{output_name}");
+    let ext = ext_by_name(&data.audio_folder, &output_name)?;
 
-    let ext = ext_by_name(audio_folder, &output_name)?;
+    let file_name = format!("{output_name}.{ext}");
+    let file_path = format!("./{}/{file_name}", data.audio_folder);
 
-    let ffmpeg_input_file_path = format!("{file_path}.{ext}");
-    let ffmpeg_output_file_path = format!("./{audio_folder}/{output_name}.wav");
-
-    convert_to_wav(&ffmpeg_input_file_path, &ffmpeg_output_file_path).await?;
-
-    vosk_wav(ffmpeg_output_file_path, model_path)
+    file_to_txt(&output_name, &file_path, data).await
 }
 
 #[allow(clippy::cast_precision_loss)]
-pub fn vosk_wav(wav_path: String, model_path: &str) -> Result<String, AppErr> {
-    let mut reader = WavReader::open(wav_path).map_err(|e| {
-        AppErr::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Could not create the WAV reader: {e}"),
-        )
-    })?;
+pub async fn file_to_txt(
+    file_name: &str,
+    file_path: &str,
+    data: &AppData,
+) -> Result<String, AppErr> {
+    let mut multipart_headers = header::HeaderMap::new();
+    multipart_headers.insert("type", "audio/ogg".parse().unwrap());
 
-    let samples = reader
-        .samples()
-        .collect::<hound::Result<Vec<i16>>>()
-        .map_err(|e| {
-            AppErr::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Could not read WAV file: {e}"),
-            )
-        })?;
+    let part = multipart::Part::file(file_path)
+        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .file_name(file_name.to_string())
+        .headers(multipart_headers)
+        .mime_str("audio/ogg")
+        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let model = Model::new(model_path).ok_or_else(|| {
-        AppErr::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Could not create the model",
-        )
-    })?;
+    let form = multipart::Form::new().part("file", part);
 
-    let mut recognizer =
-        Recognizer::new(&model, reader.spec().sample_rate as f32).ok_or_else(|| {
-            AppErr::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Could not create the recognizer",
-            )
-        })?;
+    dbg!();
 
-    recognizer.set_max_alternatives(0);
-    recognizer.set_words(true);
-    recognizer.set_partial_words(true);
-    recognizer.accept_waveform(&samples);
+    let mut headers = header::HeaderMap::new();
+    headers.insert("accept", "application/json".parse().unwrap());
+    headers.insert("Content-Type", "multipart/form-data".parse().unwrap());
 
-    let res = recognizer.final_result().single().ok_or_else(|| {
-        AppErr::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Could not create the recognizer",
-        )
-    })?;
+    dbg!();
 
-    Ok(res.text.to_string())
+    let response: SttResp = data
+        .blocking_client
+        .post("http://asrdemo.devmachine.tech/operation/get_text")
+        .bearer_auth(data.jwt.read().await)
+        .query(&[("language", "ru")])
+        .headers(headers)
+        .multipart(form)
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    // .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    dbg!();
+
+    Ok(response.ch1.text)
 }
 
 pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
@@ -111,38 +133,25 @@ pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
     Err(AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "no file"))
 }
 
-pub async fn convert_to_wav(
-    ffmpeg_input_file_path: &str,
-    ffmpeg_output_file_path: &str,
-) -> Result<(), AppErr> {
-    Command::new("ffmpeg")
-        .args(vec![
-            "-y",
-            "-i",
-            &ffmpeg_input_file_path,
-            "-ac",
-            "1",
-            &ffmpeg_output_file_path,
-        ])
-        .status()
-        .await
-        .map_err(|e| {
-            AppErr::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("err while spawn ffmpeg task: {e}"),
-            )
-        })?;
+pub async fn get_new_jwt() -> Result<String, AppErr> {
+    let mut headers = header::HeaderMap::new();
+    headers.insert("accept", "application/json".parse().unwrap());
 
-    Command::new("rm")
-        .arg(ffmpeg_input_file_path)
-        .status()
-        .await
-        .map_err(|e| {
-            AppErr::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("err while spawn ffmpeg task: {e}"),
-            )
-        })?;
+    let log = env::var("AUTH_LOGIN").unwrap();
+    let pass = env::var("AUTH_PASSWORD").unwrap();
 
-    Ok(())
+    let client = Client::new();
+    let resp: AuthResp = client
+        .post(format!(
+            "http://asrdemo.devmachine.tech/auth/sign-in?username={log}&password={pass}"
+        ))
+        .headers(headers)
+        .send()
+        .await
+        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .json()
+        .await
+        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(resp.access_token)
 }

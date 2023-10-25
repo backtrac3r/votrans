@@ -8,8 +8,9 @@ edition = "2021"
 [dependencies]
 dotenvy = "*"
 tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "*", features = ["multipart", "blocking", "json"] }
 axum = "*"
-hound = "*"
 serde = { version = "*", features = ["derive"] }
-vosk = "*"
 youtube_dl = { version = "*", features = ["tokio"] }
+
+api = { path = "../api" }

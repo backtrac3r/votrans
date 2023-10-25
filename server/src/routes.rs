@@ -1,11 +1,7 @@
 use crate::{app_data::AppData, error::AppErr, helpers::full_cycle};
+use api::Ytdlp;
 use axum::{extract::State, Json};
 use std::sync::Arc;
-
-#[derive(serde::Deserialize)]
-pub struct Ytdlp {
-    pub url: String,
-}
 
 pub async fn full_cycle_handler(
     State(data): State<Arc<AppData>>,
@@ -16,7 +12,7 @@ pub async fn full_cycle_handler(
     let counter = *counter_g;
     drop(counter_g);
 
-    full_cycle(counter, &data.audio_folder, &data.model_path, &req.url).await
+    full_cycle(counter, &req.url, &data).await
 }
 
 // pub async fn ffmpeg_page(Json(path): Json<Ytdlp>) -> Result<String, AppErr> {

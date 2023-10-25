@@ -2,11 +2,8 @@ FROM rust:latest
 
 WORKDIR /app
 
-COPY server/lib lib
-COPY model model
-COPY server/src src
-COPY server/build.rs .
-COPY server/Cargo.toml .
+COPY api api
+COPY server/Cargo.toml server
 COPY .env .
 
 RUN apt update

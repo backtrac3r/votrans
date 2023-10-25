@@ -2,5 +2,6 @@
 members = [
   "server",
   "bot",
+  "api"
 ]
 resolver = "2"

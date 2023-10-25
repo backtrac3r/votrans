@@ -1,6 +1,5 @@
-use std::env;
-
 use reqwest::Client;
+use std::env;
 
 pub struct Config {
     pub client: Client,

@@ -13,7 +13,7 @@ use tokio::fs;
 async fn main() {
     dotenvy::dotenv().unwrap();
 
-    let app_data = Arc::new(AppData::new());
+    let app_data = Arc::new(AppData::new().await);
 
     // clear video & audio dirs
     fs::remove_dir_all(&app_data.audio_folder).await.ok();
