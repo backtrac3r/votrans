@@ -1,8 +1,8 @@
 use crate::app_data::AppData;
 use crate::error::AppErr;
 use axum::http::StatusCode;
-use reqwest::blocking::multipart;
 use reqwest::header;
+use reqwest::multipart;
 use reqwest::Client;
 use std::env;
 use std::{fs::read_dir, path::PathBuf, result::Result};
@@ -59,7 +59,7 @@ pub async fn full_cycle(counter: u64, url: &str, data: &AppData) -> Result<Strin
     let file_name = format!("{output_name}.{ext}");
     let file_path = format!("./{}/{file_name}", data.audio_folder);
 
-    file_to_txt(&output_name, &file_path, data).await
+    file_to_txt(&file_name, &file_path, data).await
 }
 
 #[allow(clippy::cast_precision_loss)]
@@ -68,40 +68,62 @@ pub async fn file_to_txt(
     file_path: &str,
     data: &AppData,
 ) -> Result<String, AppErr> {
-    let mut multipart_headers = header::HeaderMap::new();
-    multipart_headers.insert("type", "audio/ogg".parse().unwrap());
-
-    let part = multipart::Part::file(file_path)
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    let file_fs = tokio::fs::File::open(file_path).await.unwrap();
+    let part = multipart::Part::stream(file_fs)
         .file_name(file_name.to_string())
-        .headers(multipart_headers)
-        .mime_str("audio/ogg")
+        .mime_str("audio/x-m4a")
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let form = multipart::Form::new().part("file", part);
 
-    dbg!();
-
     let mut headers = header::HeaderMap::new();
     headers.insert("accept", "application/json".parse().unwrap());
-    headers.insert("Content-Type", "multipart/form-data".parse().unwrap());
 
-    dbg!();
-
-    let response: SttResp = data
-        .blocking_client
+    let request = data
+        .client
         .post("http://asrdemo.devmachine.tech/operation/get_text")
         .bearer_auth(data.jwt.read().await)
         .query(&[("language", "ru")])
-        .headers(headers)
-        .multipart(form)
-        .send()
-        .unwrap()
-        .json()
-        .unwrap();
-    // .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .headers(headers.clone())
+        .multipart(form);
 
-    dbg!();
+    let result = request.send().await;
+    let response = if let Ok(r) = result {
+        r
+    } else {
+        data.update_jwt().await?;
+
+        let file_fs = tokio::fs::File::open(file_path)
+            .await
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        let part = multipart::Part::stream(file_fs)
+            .file_name(file_name.to_string())
+            .mime_str("audio/x-m4a")
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        let form = multipart::Form::new().part("file", part);
+
+        let request = data
+            .client
+            .post("http://asrdemo.devmachine.tech/operation/get_text")
+            .bearer_auth(data.jwt.read().await)
+            .query(&[("language", "ru")])
+            .headers(headers)
+            .multipart(form);
+
+        request
+            .bearer_auth(data.jwt.read().await)
+            .send()
+            .await
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    };
+
+    let response: SttResp = response
+        .json()
+        .await
+        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    // .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(response.ch1.text)
 }
