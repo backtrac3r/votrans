@@ -34,7 +34,6 @@ impl AppData {
 
     pub async fn update_jwt(&self) -> Result<(), AppErr> {
         *self.jwt.write().await = self.get_new_jwt().await?;
-        println!("new jwt: {}", self.jwt.read().await);
         Ok(())
     }
 

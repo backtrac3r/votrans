@@ -2,6 +2,8 @@ mod bot_state;
 
 use api::Ytdlp;
 use bot_state::Config;
+use bytes::Bytes;
+use futures::StreamExt;
 use reqwest::{header, multipart};
 use std::sync::Arc;
 use teloxide::{
@@ -27,6 +29,10 @@ async fn main() {
     let bot = Bot::from_env();
 
     let bot_state = Arc::new(Config::new());
+
+    let mut test_bytes = Vec::<u8>::new();
+    test_bytes.append(&mut vec![1, 2]);
+    test_bytes.append(&mut vec![3, 4]);
 
     Dispatcher::builder(
         bot,
@@ -76,16 +82,21 @@ async fn start(
             }
         };
 
-        let file_stream = bot.download_file_stream(&file.path);
+        let mut file_stream = bot.download_file_stream(&file.path);
 
-        let url = format!("http://localhost:{}/file_tt", app_data.server_port);
+        let mut file_bytes = Vec::<Bytes>::new();
+        while let Some(Ok(b)) = file_stream.next().await {
+            file_bytes.push(b);
+        }
+        let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_stream.into());
+        let part = multipart::Part::stream(file_bytes);
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
         headers.insert("accept", "application/json".parse().unwrap());
 
+        let url = format!("http://localhost:{}/file_tt", app_data.server_port);
         let response = app_data
             .client
             .post(url)

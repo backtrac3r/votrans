@@ -11,5 +11,7 @@ teloxide = "*"
 reqwest = { version = "*", features = ["json"] }
 tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 serde = { version = "*", features = ["derive"] }
+bytes = "*"
+futures = "*"
 
 api = { path = "../api" }
