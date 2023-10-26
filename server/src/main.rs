@@ -8,7 +8,6 @@ use app_data::AppData;
 use axum::{extract::DefaultBodyLimit, routing::post, Router};
 use routes::url_tt_handler;
 use std::{env, sync::Arc};
-use tokio::fs;
 
 #[tokio::main]
 async fn main() {
@@ -17,8 +16,8 @@ async fn main() {
     let app_data = Arc::new(AppData::new().await);
 
     // clear video & audio dirs
-    fs::remove_dir_all(&app_data.audio_folder).await.ok();
-    fs::create_dir(&app_data.audio_folder).await.unwrap();
+    tokio::fs::remove_dir_all(&app_data.audio_folder).await.ok();
+    tokio::fs::create_dir(&app_data.audio_folder).await.unwrap();
 
     let app = Router::new()
         .route("/url_tt", post(url_tt_handler))

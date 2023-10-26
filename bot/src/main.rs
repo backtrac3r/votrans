@@ -69,27 +69,18 @@ async fn start(
 
         bot.send_message(chat_id, "Начал обработку").await?;
 
-        let (file, file_ext) = match common_msg.media_kind {
+        let file = match common_msg.media_kind {
             MediaKind::Video(v) => {
                 let file = bot.get_file(&v.video.file.id).await.unwrap();
-                (file, "mp4".to_string())
+                file
             }
             MediaKind::Voice(v) => {
                 let file = bot.get_file(&v.voice.file.id).await.unwrap();
-                (file, "ogg".to_string())
+                file
             }
             MediaKind::Document(d) => {
                 let file = bot.get_file(&d.document.file.id).await.unwrap();
-                (
-                    file,
-                    d.document
-                        .file_name
-                        .unwrap()
-                        .split('.')
-                        .last()
-                        .unwrap()
-                        .to_string(),
-                )
+                file
             }
             _ => {
                 bot.send_message(
@@ -109,7 +100,7 @@ async fn start(
         }
         let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_bytes).file_name(format!("{}.{file_ext}", file.id));
+        let part = multipart::Part::stream(file_bytes).file_name(format!("{}", file.id));
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
@@ -153,7 +144,7 @@ async fn start(
 
     bot.send_message(chat_id, "Начал обработку").await?;
 
-    let url = format!("http://localhost:{}/url_tt", app_data.server_port);
+    let url = format!("http://127.0.0.1:{}/url_tt", app_data.server_port);
     let resp = app_data
         .client
         .post(url)
