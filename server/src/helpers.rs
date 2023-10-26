@@ -68,14 +68,12 @@ pub async fn file_tt(
     app_data: &AppData,
 ) -> Result<String, AppErr> {
     let result = app_data.do_file_tt_req(file_name, file_bytes).await;
-    dbg!();
 
     let response = if let Ok(r) = result {
-        dbg!();
         r
     } else {
         app_data.update_jwt().await?;
-        dbg!();
+
         return Err(AppErr::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             "jwt expired",
@@ -87,12 +85,10 @@ pub async fn file_tt(
         //     .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     };
 
-    dbg!();
     let response: SttResp = response
         .json()
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    dbg!();
 
     Ok(response.ch1.text)
 }

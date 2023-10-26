@@ -71,17 +71,12 @@ impl AppData {
         file_name: &str,
         file_stream: impl Into<Body>,
     ) -> Result<Response, Error> {
-        dbg!();
         let part = multipart::Part::stream(file_stream).file_name(file_name.to_string());
         let form = multipart::Form::new().part("file", part);
 
-        dbg!();
         let mut headers = header::HeaderMap::new();
-        dbg!();
         headers.insert("accept", "application/json".parse().unwrap());
 
-        dbg!();
-        dbg!();
         let request = self
             .client
             .post("http://asrdemo.devmachine.tech/operation/get_text")
@@ -90,7 +85,6 @@ impl AppData {
             .headers(headers.clone())
             .multipart(form);
 
-        dbg!();
         request.send().await
     }
 }

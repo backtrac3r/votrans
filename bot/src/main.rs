@@ -69,9 +69,28 @@ async fn start(
 
         bot.send_message(chat_id, "Начал обработку").await?;
 
-        let file = match common_msg.media_kind {
-            MediaKind::Video(v) => bot.get_file(&v.video.file.id).await.unwrap(),
-            MediaKind::Voice(v) => bot.get_file(&v.voice.file.id).await.unwrap(),
+        let (file, file_ext) = match common_msg.media_kind {
+            MediaKind::Video(v) => {
+                let file = bot.get_file(&v.video.file.id).await.unwrap();
+                (file, "mp4".to_string())
+            }
+            MediaKind::Voice(v) => {
+                let file = bot.get_file(&v.voice.file.id).await.unwrap();
+                (file, "ogg".to_string())
+            }
+            MediaKind::Document(d) => {
+                let file = bot.get_file(&d.document.file.id).await.unwrap();
+                (
+                    file,
+                    d.document
+                        .file_name
+                        .unwrap()
+                        .split('.')
+                        .last()
+                        .unwrap()
+                        .to_string(),
+                )
+            }
             _ => {
                 bot.send_message(
                     chat_id,
@@ -90,7 +109,7 @@ async fn start(
         }
         let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_bytes);
+        let part = multipart::Part::stream(file_bytes).file_name(format!("{}.{file_ext}", file.id));
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();

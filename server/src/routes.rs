@@ -26,13 +26,17 @@ pub async fn file_tt_handler(
 ) -> Result<String, AppErr> {
     println!("new file_tt req");
     while let Ok(Some(field)) = multipart.next_field().await {
+        let Some(file_name) = field.file_name() else {
+            continue;
+        };
+        let file_name = file_name.to_string();
+        dbg!(&file_name);
+
         let Ok(file_bytes) = field.bytes().await else {
             continue;
         };
-
-        let counter = app_data.get_counter().await;
-
-        let file_name = format!("temp{counter}");
+        // let counter = app_data.get_counter().await;
+        // let file_name = format!("temp{counter}");
 
         return file_tt(&file_name, file_bytes, &app_data).await;
     }
