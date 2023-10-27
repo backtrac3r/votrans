@@ -9,7 +9,6 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
 
 pub async fn url_tt_handler(
     State(app_data): State<Arc<AppData>>,
@@ -30,18 +29,11 @@ pub async fn file_tt_handler(
         let Some(file_name) = field.file_name() else {
             continue;
         };
-        dbg!(&file_name);
         let file_name = file_name.to_string();
 
         let Ok(file_bytes) = field.bytes().await else {
             continue;
         };
-
-        dbg!(&file_bytes);
-
-        tokio::fs::create_dir(&file_name).await.unwrap();
-        let mut file = tokio::fs::File::open(&file_name).await.unwrap();
-        file.write_all(&file_bytes).await.unwrap();
 
         return file_tt(&file_name, file_bytes, &app_data).await;
     }

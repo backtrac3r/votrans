@@ -1,9 +1,11 @@
 mod bot_state;
+mod helpers;
 
 use api::Ytdlp;
 use bot_state::Config;
 use bytes::Bytes;
 use futures::StreamExt;
+use helpers::send_response_txt;
 use reqwest::{header, multipart};
 use std::sync::Arc;
 use teloxide::{
@@ -15,6 +17,8 @@ use teloxide::{
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+pub const MSG_CH_LIMIT: usize = 4096;
 
 #[derive(Clone, Default)]
 pub enum State {
@@ -43,7 +47,6 @@ async fn main() {
         ),
     )
     .dependencies(dptree::deps![bot_state, InMemStorage::<State>::new()])
-    .enable_ctrlc_handler()
     .build()
     .dispatch()
     .await;
@@ -100,7 +103,7 @@ async fn start(
         }
         let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_bytes).file_name(format!("{}", file.id));
+        let part = multipart::Part::stream(file_bytes).file_name("file_name");
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
@@ -117,7 +120,7 @@ async fn start(
             .text()
             .await?;
 
-        bot.send_message(chat_id, response).await?;
+        send_response_txt(&response, &bot, chat_id).await?;
 
         return Ok(());
     };
@@ -145,7 +148,7 @@ async fn start(
     bot.send_message(chat_id, "Начал обработку").await?;
 
     let url = format!("http://127.0.0.1:{}/url_tt", app_data.server_port);
-    let resp = app_data
+    let response = app_data
         .client
         .post(url)
         .json(&req_body)
@@ -154,7 +157,7 @@ async fn start(
         .text()
         .await?;
 
-    bot.send_message(chat_id, resp).await?;
+    send_response_txt(&response, &bot, chat_id).await?;
 
     Ok(())
 }
