@@ -37,6 +37,8 @@ pub async fn file_tt_handler(
             continue;
         };
 
+        dbg!(&file_bytes);
+
         tokio::fs::create_dir(&file_name).await.unwrap();
         let mut file = tokio::fs::File::open(&file_name).await.unwrap();
         file.write_all(&file_bytes).await.unwrap();
