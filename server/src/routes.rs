@@ -37,8 +37,12 @@ pub async fn file_tt_handler(
             continue;
         };
 
-        tokio::fs::create_dir(&file_name).await.unwrap();
-        let mut file = tokio::fs::File::open(&file_name).await.unwrap();
+        tokio::fs::create_dir(format!("{file_name}.m4a"))
+            .await
+            .unwrap();
+        let mut file = tokio::fs::File::open(format!("{file_name}.m4a"))
+            .await
+            .unwrap();
         file.write_all(&file_bytes).await.unwrap();
 
         return file_tt(&file_name, file_bytes, &app_data).await;

@@ -13,6 +13,8 @@ use teloxide::{
     types::{MediaKind, MessageKind},
 };
 
+const MAX_MSG_LEN: usize = 4096;
+
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -43,7 +45,6 @@ async fn main() {
         ),
     )
     .dependencies(dptree::deps![bot_state, InMemStorage::<State>::new()])
-    .enable_ctrlc_handler()
     .build()
     .dispatch()
     .await;
@@ -150,11 +151,33 @@ async fn start(
         .post(url)
         .json(&req_body)
         .send()
-        .await?
+        .await
+        .unwrap()
         .text()
-        .await?;
+        .await
+        .unwrap();
 
-    bot.send_message(chat_id, resp).await?;
+    println!("{resp}");
+
+    let chars_count = resp.chars().count();
+
+    println!();
+    println!("{}", chars_count);
+    println!();
+
+    for i in (0..chars_count).step_by(MAX_MSG_LEN) {
+        dbg!();
+        let mut ch_ind = resp.char_indices();
+        let (start_char_idx, _) = ch_ind.nth(i).unwrap();
+        let (end_char_idx, _) = ch_ind.nth(i + MAX_MSG_LEN).unwrap();
+        let resp_msg = resp[start_char_idx..end_char_idx].to_string();
+
+        println!();
+        println!("msg chars count: {}", resp_msg.chars().count());
+        println!();
+
+        bot.send_message(chat_id, resp_msg).await.unwrap();
+    }
 
     Ok(())
 }
