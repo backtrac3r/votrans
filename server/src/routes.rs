@@ -1,8 +1,4 @@
-use crate::{
-    app_data::AppData,
-    error::AppErr,
-    helpers::{ffmpeg_convert, full_cycle},
-};
+use crate::{app_data::AppData, error::AppErr, helpers::ffmpeg_convert};
 use api::Ytdlp;
 use axum::{
     extract::{Multipart, State},
@@ -19,9 +15,8 @@ pub async fn url_tt_handler(
     Json(req): Json<Ytdlp>,
 ) -> Result<String, AppErr> {
     println!("new url_tt req");
-    let counter = app_data.get_counter().await;
 
-    full_cycle(counter, &req.url, &app_data).await
+    app_data.full_cycle(&req.url).await
 }
 
 pub async fn file_tt_handler(
@@ -31,7 +26,7 @@ pub async fn file_tt_handler(
     println!("new file_tt req");
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name().unwrap() == "file" {
-            let file_name = app_data.get_counter().await.to_string();
+            let file_name = format!("temp{}", app_data.get_counter().await.to_string());
 
             let Ok(file_bytes) = field.bytes().await else {
                 continue;
@@ -55,7 +50,7 @@ pub async fn file_tt_handler(
 
             let file = File::open(&output_file_path).await.unwrap();
 
-            return app_data.file_tt(file).await;
+            return app_data.file_tt(file, &format!("{file_name}.wav")).await;
         }
     }
 
