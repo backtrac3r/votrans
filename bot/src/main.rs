@@ -15,8 +15,6 @@ use teloxide::{
     types::{MediaKind, MessageKind},
 };
 
-const MAX_MSG_LEN: usize = 4096;
-
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -155,11 +153,9 @@ async fn start(
         .post(url)
         .json(&req_body)
         .send()
-        .await
-        .unwrap()
+        .await?
         .text()
-        .await
-        .unwrap();
+        .await?;
 
     send_response_txt(&response, &bot, chat_id).await?;
 
