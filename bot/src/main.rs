@@ -103,7 +103,7 @@ async fn start(
         }
         let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_bytes).file_name("file_name");
+        let part = multipart::Part::stream(file_bytes).file_name(file.id.to_string());
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();

@@ -1,8 +1,8 @@
 use crate::app_data::AppData;
 use crate::error::AppErr;
 use axum::http::StatusCode;
-use reqwest::Body;
 use std::{fs::read_dir, path::PathBuf, result::Result};
+use tokio::process::Command;
 use youtube_dl::YoutubeDl;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -44,7 +44,7 @@ pub struct N1 {
 pub async fn full_cycle(counter: u64, url: &str, app_data: &AppData) -> Result<String, AppErr> {
     let file_name = format!("temp{counter}");
 
-    let path = PathBuf::from(&app_data.audio_folder);
+    let path = PathBuf::from(&app_data.temp_folder);
     let mut ytd = YoutubeDl::new(url);
 
     ytd.output_template(file_name.clone())
@@ -53,45 +53,13 @@ pub async fn full_cycle(counter: u64, url: &str, app_data: &AppData) -> Result<S
         .await
         .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let ext = ext_by_name(&app_data.audio_folder, &file_name)?;
+    let ext = ext_by_name(&app_data.temp_folder, &file_name)?;
 
     let file_name = format!("{file_name}.{ext}");
-    let file_path = format!("./{}/{file_name}", app_data.audio_folder);
+    let file_path = format!("./{}/{file_name}", app_data.temp_folder);
     let file_fs = tokio::fs::File::open(file_path).await.unwrap();
 
-    file_tt(&file_name, file_fs, app_data).await
-}
-
-pub async fn file_tt(
-    file_name: &str,
-    file_bytes: impl Into<Body>,
-    app_data: &AppData,
-) -> Result<String, AppErr> {
-    let result = app_data.do_file_tt_req(file_name, file_bytes).await;
-
-    let response = if let Ok(r) = result {
-        r
-    } else {
-        app_data.update_jwt().await?;
-
-        return Err(AppErr::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "jwt expired",
-        ));
-
-        // repeat request
-        // app_data
-        //     .do_file_tt_req(file_name, file_bytes)
-        //     .await
-        //     .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    };
-
-    let response: SttResp = response
-        .json()
-        .await
-        .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(response.ch1.text)
+    app_data.file_tt(file_fs).await
 }
 
 pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
@@ -119,4 +87,40 @@ pub fn ext_by_name(path: &str, file_name: &str) -> Result<String, AppErr> {
     }
 
     Err(AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "no file"))
+}
+
+pub async fn ffmpeg_convert(
+    ffmpeg_input_file_path: &str,
+    ffmpeg_output_file_path: &str,
+) -> Result<(), AppErr> {
+    Command::new("ffmpeg")
+        .args(vec![
+            "-y",
+            "-i",
+            &ffmpeg_input_file_path,
+            "-ac",
+            "1",
+            &ffmpeg_output_file_path,
+        ])
+        .status()
+        .await
+        .map_err(|e| {
+            AppErr::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("err while spawn ffmpeg task: {e}"),
+            )
+        })?;
+
+    Command::new("rm")
+        .arg(ffmpeg_input_file_path)
+        .status()
+        .await
+        .map_err(|e| {
+            AppErr::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("err while spawn ffmpeg task: {e}"),
+            )
+        })?;
+
+    Ok(())
 }

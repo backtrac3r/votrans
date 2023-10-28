@@ -1,7 +1,7 @@
 use crate::{
     app_data::AppData,
     error::AppErr,
-    helpers::{file_tt, full_cycle},
+    helpers::{ffmpeg_convert, full_cycle},
 };
 use api::Ytdlp;
 use axum::{
@@ -9,6 +9,10 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
+use tokio::{
+    fs::{File, OpenOptions},
+    io::AsyncWriteExt,
+};
 
 pub async fn url_tt_handler(
     State(app_data): State<Arc<AppData>>,
@@ -26,16 +30,33 @@ pub async fn file_tt_handler(
 ) -> Result<String, AppErr> {
     println!("new file_tt req");
     while let Ok(Some(field)) = multipart.next_field().await {
-        let Some(file_name) = field.file_name() else {
-            continue;
-        };
-        let file_name = file_name.to_string();
+        if field.name().unwrap() == "file" {
+            let file_name = app_data.get_counter().await.to_string();
 
-        let Ok(file_bytes) = field.bytes().await else {
-            continue;
-        };
+            let Ok(file_bytes) = field.bytes().await else {
+                continue;
+            };
 
-        return file_tt(&file_name, file_bytes, &app_data).await;
+            let input_file_path = format!("./{}/{file_name}", app_data.temp_folder);
+
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(&input_file_path)
+                .await
+                .unwrap();
+
+            file.write_all(&file_bytes).await.unwrap();
+
+            let output_file_path = format!("./{}/{file_name}.wav", app_data.temp_folder);
+
+            ffmpeg_convert(&input_file_path, &output_file_path).await?;
+
+            let file = File::open(&output_file_path).await.unwrap();
+
+            return app_data.file_tt(file).await;
+        }
     }
 
     Ok(String::new())

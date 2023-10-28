@@ -1,5 +1,6 @@
 use crate::error::AppErr;
 use crate::helpers::AuthResp;
+use crate::helpers::SttResp;
 use reqwest::header;
 use reqwest::multipart;
 use reqwest::Body;
@@ -12,17 +13,17 @@ use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 
 pub struct AppData {
-    pub temp_counter: Mutex<u64>,
-    pub audio_folder: String,
+    temp_counter: Mutex<u64>,
+    pub temp_folder: String,
     pub client: Client,
-    pub jwt: RwLock<String>,
+    jwt: RwLock<String>,
 }
 
 impl AppData {
     pub async fn new() -> Self {
         let app_data = AppData {
             temp_counter: Mutex::new(0),
-            audio_folder: env::var("AUDIO_FOLDER").unwrap(),
+            temp_folder: env::var("TEMP_FOLDER").unwrap(),
             client: Client::new(),
             jwt: RwLock::default(),
         };
@@ -66,12 +67,8 @@ impl AppData {
         Ok(resp.access_token)
     }
 
-    pub async fn do_file_tt_req(
-        &self,
-        file_name: &str,
-        file_stream: impl Into<Body>,
-    ) -> Result<Response, Error> {
-        let part = multipart::Part::stream(file_stream).file_name(file_name.to_string());
+    pub async fn do_file_tt_req(&self, file_stream: impl Into<Body>) -> Result<Response, Error> {
+        let part = multipart::Part::stream(file_stream);
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
@@ -86,5 +83,33 @@ impl AppData {
             .multipart(form);
 
         request.send().await
+    }
+
+    pub async fn file_tt(&self, file: impl Into<Body>) -> Result<String, AppErr> {
+        let result = self.do_file_tt_req(file).await;
+
+        let response = if let Ok(r) = result {
+            r
+        } else {
+            self.update_jwt().await?;
+
+            return Err(AppErr::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "jwt expired",
+            ));
+
+            // repeat request
+            // app_data
+            //     .do_file_tt_req(file_name, file_bytes)
+            //     .await
+            //     .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        };
+
+        let response: SttResp = response
+            .json()
+            .await
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        Ok(response.ch1.text)
     }
 }

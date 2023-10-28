@@ -10,7 +10,7 @@ pub async fn send_response_txt(resp: &str, bot: &Bot, chat_id: ChatId) -> Handle
         .collect::<Vec<String>>();
 
     for msg in msgs {
-        bot.send_message(chat_id, msg).await.unwrap();
+        bot.send_message(chat_id, msg).await?;
     }
 
     Ok(())

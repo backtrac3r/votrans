@@ -15,9 +15,8 @@ async fn main() {
 
     let app_data = Arc::new(AppData::new().await);
 
-    // clear video & audio dirs
-    tokio::fs::remove_dir_all(&app_data.audio_folder).await.ok();
-    tokio::fs::create_dir(&app_data.audio_folder).await.unwrap();
+    tokio::fs::remove_dir_all(&app_data.temp_folder).await.ok();
+    tokio::fs::create_dir(&app_data.temp_folder).await.unwrap();
 
     let app = Router::new()
         .route("/url_tt", post(url_tt_handler))
