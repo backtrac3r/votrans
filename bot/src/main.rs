@@ -1,9 +1,11 @@
 mod bot_state;
+mod helpers;
 
 use api::Ytdlp;
 use bot_state::Config;
 use bytes::Bytes;
 use futures::StreamExt;
+use helpers::send_response_txt;
 use reqwest::{header, multipart};
 use std::sync::Arc;
 use teloxide::{
@@ -17,6 +19,8 @@ const MAX_MSG_LEN: usize = 4096;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
+pub const MSG_CH_LIMIT: usize = 4096;
 
 #[derive(Clone, Default)]
 pub enum State {
@@ -101,7 +105,7 @@ async fn start(
         }
         let file_bytes = file_bytes.concat();
 
-        let part = multipart::Part::stream(file_bytes).file_name(format!("{}", file.id));
+        let part = multipart::Part::stream(file_bytes).file_name(file.id.to_string());
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
@@ -118,7 +122,7 @@ async fn start(
             .text()
             .await?;
 
-        bot.send_message(chat_id, response).await?;
+        send_response_txt(&response, &bot, chat_id).await?;
 
         return Ok(());
     };
@@ -146,7 +150,7 @@ async fn start(
     bot.send_message(chat_id, "Начал обработку").await?;
 
     let url = format!("http://127.0.0.1:{}/url_tt", app_data.server_port);
-    let resp = app_data
+    let response = app_data
         .client
         .post(url)
         .json(&req_body)
@@ -157,27 +161,7 @@ async fn start(
         .await
         .unwrap();
 
-    println!("{resp}");
-
-    let chars_count = resp.chars().count();
-
-    println!();
-    println!("{}", chars_count);
-    println!();
-
-    for i in (0..chars_count).step_by(MAX_MSG_LEN) {
-        dbg!();
-        let mut ch_ind = resp.char_indices();
-        let (start_char_idx, _) = ch_ind.nth(i).unwrap();
-        let (end_char_idx, _) = ch_ind.nth(i + MAX_MSG_LEN).unwrap();
-        let resp_msg = resp[start_char_idx..end_char_idx].to_string();
-
-        println!();
-        println!("msg chars count: {}", resp_msg.chars().count());
-        println!();
-
-        bot.send_message(chat_id, resp_msg).await.unwrap();
-    }
+    send_response_txt(&response, &bot, chat_id).await?;
 
     Ok(())
 }
