@@ -1,7 +1,8 @@
 mod bot_state;
 mod helpers;
+mod markups;
 
-use api::Ytdlp;
+use api::{Lang, Ytdlp};
 use bot_state::Config;
 use bytes::Bytes;
 use futures::StreamExt;
@@ -20,10 +21,19 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 pub const MSG_CH_LIMIT: usize = 4096;
 
+#[derive(Clone)]
+pub enum Data {
+    Url(String),
+    FileId(String),
+}
+
 #[derive(Clone, Default)]
 pub enum State {
     #[default]
     Start,
+    HighlightWords {
+        data: Data,
+    },
 }
 
 #[tokio::main]
@@ -43,7 +53,8 @@ async fn main() {
         dptree::entry().branch(
             Update::filter_message()
                 .enter_dialogue::<Message, InMemStorage<State>, State>()
-                .branch(dptree::case![State::Start].endpoint(start)),
+                .branch(dptree::case![State::Start].endpoint(start_handler))
+                .branch(dptree::case![State::HighlightWords { data }].endpoint(words_handler)),
         ),
     )
     .dependencies(dptree::deps![bot_state, InMemStorage::<State>::new()])
@@ -52,9 +63,9 @@ async fn main() {
     .await;
 }
 
-async fn start(
+async fn start_handler(
     bot: Bot,
-    _dialogue: MyDialogue,
+    dialogue: MyDialogue,
     app_data: Arc<Config>,
     msg: Message,
 ) -> HandlerResult {
@@ -73,16 +84,16 @@ async fn start(
         bot.send_message(chat_id, "Начал обработку").await?;
 
         let file = match &common_msg.media_kind {
-            MediaKind::Video(v) => {
-                let file = bot.get_file(&v.video.file.id).await.unwrap();
+            MediaKind::Video(m) => {
+                let file = bot.get_file(&m.video.file.id).await.unwrap();
                 file
             }
-            MediaKind::Voice(v) => {
-                let file = bot.get_file(&v.voice.file.id).await.unwrap();
+            MediaKind::Voice(m) => {
+                let file = bot.get_file(&m.voice.file.id).await.unwrap();
                 file
             }
-            MediaKind::Document(d) => {
-                let file = bot.get_file(&d.document.file.id).await.unwrap();
+            MediaKind::Document(m) => {
+                let file = bot.get_file(&m.document.file.id).await.unwrap();
                 file
             }
             _ => {
