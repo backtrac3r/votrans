@@ -5,13 +5,11 @@ use crate::helpers::AuthResp;
 use crate::helpers::SttResp;
 use reqwest::header;
 use reqwest::multipart;
-use reqwest::Body;
 use reqwest::Client;
-use reqwest::Error;
-use reqwest::Response;
 use reqwest::StatusCode;
 use std::env;
 use std::path::PathBuf;
+use tokio::fs::File;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use youtube_dl::YoutubeDl;
@@ -29,17 +27,26 @@ impl AppData {
             temp_counter: Mutex::new(0),
             temp_folder: env::var("TEMP_FOLDER").unwrap(),
             client: Client::new(),
-            jwt: RwLock::default(),
+            jwt: RwLock::new("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWNjZXNzIiwiaWQiOjEsImlkZW50aXR5IjoiMDEyN2JmZWYtNzY1Ni0xMWVlLWEyMTAtMDAwMDY1M2U0ZWQxIiwiZXhwIjoxNjk4NTg1ODI1fQ.m0QrU0oIu4Ze7BK-ZC-MdRKuuwM4uy6R8VPkAZyuLaA".to_string()),
         };
 
-        app_data.update_jwt().await.unwrap();
+        // app_data.update_jwt().await.unwrap();
 
         app_data
     }
 
     pub async fn update_jwt(&self) -> Result<(), AppErr> {
+        dbg!();
         *self.jwt.write().await = self.get_new_jwt().await?;
+
+        dbg!();
+        println!("jwt: {}", self.get_jwt().await?);
+
         Ok(())
+    }
+
+    pub async fn get_jwt(&self) -> Result<String, AppErr> {
+        Ok(self.jwt.read().await.to_string())
     }
 
     pub async fn get_counter(&self) -> u64 {
@@ -63,60 +70,70 @@ impl AppData {
             .headers(headers)
             .send()
             .await
-            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            .unwrap()
             .json()
             .await
-            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            .unwrap();
 
         Ok(resp.access_token)
     }
 
-    pub async fn do_file_tt_req(
-        &self,
-        file_stream: impl Into<Body>,
-        file_name: &str,
-    ) -> Result<Response, Error> {
-        let part = multipart::Part::stream(file_stream).file_name(file_name.to_string());
+    pub async fn do_file_tt_req(&self, file: File, file_name: &str) -> Result<SttResp, AppErr> {
+        dbg!();
+        let part = multipart::Part::stream(file).file_name(file_name.to_string());
         let form = multipart::Form::new().part("file", part);
 
         let mut headers = header::HeaderMap::new();
-        headers.insert("accept", "application/json".parse().unwrap());
+        headers.insert(
+            "accept",
+            "application/json"
+                .parse()
+                .map_err(|_| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, "header err"))?,
+        );
 
-        let request = self
+        let resp_txt: String = self
             .client
             .post("http://asrdemo.devmachine.tech/operation/get_text")
-            .bearer_auth(self.jwt.read().await)
+            .bearer_auth(self.get_jwt().await?)
             .query(&[("language", "ru")])
             .headers(headers.clone())
-            .multipart(form);
-
-        request.send().await
-    }
-
-    pub async fn file_tt(&self, file: impl Into<Body>, file_name: &str) -> Result<String, AppErr> {
-        let result = self.do_file_tt_req(file, file_name).await;
-
-        let response = if let Ok(r) = result {
-            r
-        } else {
-            self.update_jwt().await?;
-
-            return Err(AppErr::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "jwt expired",
-            ));
-
-            // repeat request
-            // app_data
-            //     .do_file_tt_req(file_name, file_bytes)
-            //     .await
-            //     .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        };
-
-        let response: SttResp = response
-            .json()
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .text()
             .await
             .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        dbg!(&resp_txt);
+
+        serde_json::from_str(&resp_txt)
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+    }
+
+    pub async fn file_tt(&self, file: File, file_name: &str) -> Result<String, AppErr> {
+        let file_mem_copy = file
+            .try_clone()
+            .await
+            .map_err(|e| AppErr::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+            .unwrap();
+
+        let response = self.do_file_tt_req(file_mem_copy, file_name).await;
+
+        let response = if let Ok(r) = response {
+            println!("ok resp");
+            r
+        } else {
+            println!("update jwt");
+            self.update_jwt().await.unwrap();
+
+            // repeat request
+            println!("repeat err req");
+            dbg!(file_name);
+            self.do_file_tt_req(file, &file_name).await?
+        };
 
         Ok(response.ch1.text)
     }

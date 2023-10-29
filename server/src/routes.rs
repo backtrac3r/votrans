@@ -14,8 +14,6 @@ pub async fn url_tt_handler(
     State(app_data): State<Arc<AppData>>,
     Json(req): Json<Ytdlp>,
 ) -> Result<String, AppErr> {
-    println!("new url_tt req");
-
     app_data.full_cycle(&req.url).await
 }
 
@@ -23,7 +21,6 @@ pub async fn file_tt_handler(
     State(app_data): State<Arc<AppData>>,
     mut multipart: Multipart,
 ) -> Result<String, AppErr> {
-    println!("new file_tt req");
     while let Ok(Some(field)) = multipart.next_field().await {
         if field.name().unwrap() == "file" {
             let file_name = format!("temp{}", app_data.get_counter().await.to_string());

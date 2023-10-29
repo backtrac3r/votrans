@@ -77,6 +77,8 @@ pub async fn ffmpeg_convert(
             &ffmpeg_input_file_path,
             "-ac",
             "1",
+            "-loglevel",
+            "quiet",
             &ffmpeg_output_file_path,
         ])
         .status()

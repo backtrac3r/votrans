@@ -61,7 +61,7 @@ async fn start(
     let chat_id = msg.chat.id;
 
     let Some(txt) = msg.text() else {
-        let MessageKind::Common(common_msg) = msg.kind else {
+        let MessageKind::Common(common_msg) = &msg.kind else {
             bot.send_message(
                 chat_id,
                 "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
@@ -72,7 +72,7 @@ async fn start(
 
         bot.send_message(chat_id, "Начал обработку").await?;
 
-        let file = match common_msg.media_kind {
+        let file = match &common_msg.media_kind {
             MediaKind::Video(v) => {
                 let file = bot.get_file(&v.video.file.id).await.unwrap();
                 file
@@ -120,7 +120,7 @@ async fn start(
             .text()
             .await?;
 
-        send_response_txt(&response, &bot, chat_id).await?;
+        send_response_txt(&response, &bot, &msg).await?;
 
         return Ok(());
     };
@@ -157,7 +157,7 @@ async fn start(
         .text()
         .await?;
 
-    send_response_txt(&response, &bot, chat_id).await?;
+    send_response_txt(&response, &bot, &msg).await?;
 
     Ok(())
 }

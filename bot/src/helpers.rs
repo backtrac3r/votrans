@@ -1,7 +1,9 @@
 use crate::{HandlerResult, MSG_CH_LIMIT};
 use teloxide::prelude::*;
 
-pub async fn send_response_txt(resp: &str, bot: &Bot, chat_id: ChatId) -> HandlerResult {
+pub async fn send_response_txt(resp: &str, bot: &Bot, chat_msg: &Message) -> HandlerResult {
+    let chat_id = chat_msg.chat.id;
+
     let msgs = resp
         .chars()
         .collect::<Vec<char>>()
@@ -10,7 +12,9 @@ pub async fn send_response_txt(resp: &str, bot: &Bot, chat_id: ChatId) -> Handle
         .collect::<Vec<String>>();
 
     for msg in msgs {
-        bot.send_message(chat_id, msg).await?;
+        bot.send_message(chat_id, msg)
+            .reply_to_message_id(chat_msg.id)
+            .await?;
     }
 
     Ok(())
