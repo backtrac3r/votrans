@@ -1,6 +1,7 @@
 use crate::error::AppErr;
 use crate::helpers::ext_by_name;
 use crate::helpers::ffmpeg_convert;
+use crate::helpers::rm_file;
 use crate::helpers::AuthResp;
 use crate::helpers::SttResp;
 use reqwest::header;
@@ -126,6 +127,8 @@ impl AppData {
 
             self.do_file_tt_req(file_mem_copy, &file_name).await?
         };
+
+        rm_file(&format!("{}/{file_name}", self.temp_folder)).await?;
 
         Ok(response.ch1.text)
     }

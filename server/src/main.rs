@@ -3,7 +3,7 @@ mod error;
 mod helpers;
 mod routes;
 
-use crate::routes::file_tt_handler;
+use crate::{helpers::auto_update_jwt, routes::file_tt_handler};
 use app_data::AppData;
 use axum::{extract::DefaultBodyLimit, routing::post, Router};
 use routes::url_tt_handler;
@@ -14,6 +14,7 @@ async fn main() {
     dotenvy::dotenv().unwrap();
 
     let app_data = Arc::new(AppData::new().await);
+    auto_update_jwt(app_data.clone());
 
     tokio::fs::remove_dir_all(&app_data.temp_folder).await.ok();
     tokio::fs::create_dir(&app_data.temp_folder).await.unwrap();

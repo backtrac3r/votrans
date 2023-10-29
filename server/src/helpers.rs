@@ -1,6 +1,6 @@
-use crate::error::AppErr;
+use crate::{app_data::AppData, error::AppErr};
 use axum::http::StatusCode;
-use std::{fs::read_dir, result::Result};
+use std::{fs::read_dir, result::Result, sync::Arc, time::Duration};
 use tokio::process::Command;
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -90,16 +90,33 @@ pub async fn ffmpeg_convert(
             )
         })?;
 
+    rm_file(ffmpeg_input_file_path).await?;
+
+    Ok(())
+}
+
+pub async fn rm_file(file_path: &str) -> Result<(), AppErr> {
     Command::new("rm")
-        .arg(ffmpeg_input_file_path)
+        .arg(file_path)
         .status()
         .await
         .map_err(|e| {
             AppErr::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("err while spawn ffmpeg task: {e}"),
+                format!("err while spawn rm task: {e}"),
             )
         })?;
 
     Ok(())
+}
+
+pub fn auto_update_jwt(app_data: Arc<AppData>) {
+    tokio::spawn(async move {
+        loop {
+            // update jwt every 59 min
+            tokio::time::sleep(Duration::from_secs(3540)).await;
+
+            app_data.update_jwt().await.unwrap();
+        }
+    });
 }
