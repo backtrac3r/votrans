@@ -13,3 +13,11 @@ fn kb_markup(keyboard: &[Vec<&str>]) -> ReplyMarkup {
 
     ReplyMarkup::Keyboard(markup)
 }
+
+pub fn select_words_options() -> ReplyMarkup {
+    kb_markup(&[vec!["Назад"]])
+}
+
+pub fn start_options() -> ReplyMarkup {
+    kb_markup(&[vec!["Выбрать слова"]])
+}
