@@ -74,7 +74,7 @@ async fn start_handler(
         let MessageKind::Common(common_msg) = &msg.kind else {
             bot.send_message(
                 chat_id,
-                "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
             )
             .await?;
 
@@ -97,7 +97,7 @@ async fn start_handler(
             _ => {
                 bot.send_message(
                     chat_id,
-                    "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+                    "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
                 )
                 .await?;
                 return Ok(());
@@ -126,7 +126,7 @@ async fn start_handler(
         "/start" => {
             bot.send_message(
                 chat_id,
-                "Отправь мне файл/гс/ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
+                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
             )
             .reply_markup(start_options())
             .await?;
@@ -162,8 +162,9 @@ async fn select_words_handler(bot: Bot, dialogue: MyDialogue, msg: Message) -> H
 
             bot.send_message(
                 chat_id,
-                "Отправь мне ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
+                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
             )
+            .reply_markup(start_options())
             .await?;
         }
         _ => {
@@ -213,7 +214,7 @@ async fn words_highlight_handler(
         let MessageKind::Common(common_msg) = &msg.kind else {
             bot.send_message(
                 chat_id,
-                "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
             )
             .await?;
 
@@ -233,10 +234,18 @@ async fn words_highlight_handler(
                 let file = bot.get_file(&m.document.file.id).await.unwrap();
                 file
             }
+            MediaKind::Audio(m) => {
+                let file = bot.get_file(&m.audio.file.id).await.unwrap();
+                file
+            }
+            MediaKind::VideoNote(m) => {
+                let file = bot.get_file(&m.video_note.file.id).await.unwrap();
+                file
+            }
             _ => {
                 bot.send_message(
                     chat_id,
-                    "отправь мне ссылку на видео, голосовое сообщение, или видеофайл",
+                    "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
                 )
                 .await?;
 
@@ -262,7 +271,7 @@ async fn words_highlight_handler(
 
     bot.send_message(
         chat_id,
-        "Отправь мне ссылку на видео из VK/YouTube, а я переведу речь из видео в текст и выделю твои слова",
+        "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube, а я переведу речь в текст и выделю твои слова",
     )
     .await?;
 
