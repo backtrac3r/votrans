@@ -3,7 +3,11 @@ use api::Ytdlp;
 use bytes::Bytes;
 use futures::StreamExt;
 use reqwest::{header, multipart};
-use teloxide::{net::Download, prelude::*, types::ParseMode};
+use teloxide::{
+    net::Download,
+    prelude::*,
+    types::{MediaKind, MessageKind, ParseMode},
+};
 
 pub const MSG_CH_LIMIT: usize = 4096;
 
@@ -96,4 +100,73 @@ pub async fn url_tt(
         .await?;
 
     Ok(response)
+}
+
+pub fn txt_screening(txt: &str) -> String {
+    txt.replace('_', "\\_")
+        .replace('*', "\\*")
+        .replace(',', "\\,")
+        .replace('[', "\\[")
+        .replace(']', "\\]")
+        .replace('(', "\\)")
+        .replace('~', "\\~")
+        .replace('`', "\\`")
+        .replace('>', "\\>")
+        .replace('#', "\\#")
+        .replace('+', "\\+")
+        .replace('-', "\\-")
+        .replace('=', "\\=")
+        .replace('|', "\\|")
+        .replace('{', "\\{")
+        .replace('}', "\\}")
+        .replace('.', "\\.")
+        .replace('!', "\\!")
+}
+
+pub async fn get_file_from_msg(bot: &Bot, msg: &Message) -> Result<teloxide::types::File, BotErr> {
+    let chat_id = msg.chat.id;
+
+    let MessageKind::Common(common_msg) = &msg.kind else {
+        bot.send_message(
+            chat_id,
+            "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
+        )
+        .await?;
+
+        return Err(BotErr::from(""));
+    };
+
+    let file = match &common_msg.media_kind {
+        MediaKind::Video(m) => {
+            let file = bot.get_file(&m.video.file.id).await?;
+            file
+        }
+        MediaKind::Voice(m) => {
+            let file = bot.get_file(&m.voice.file.id).await?;
+            file
+        }
+        MediaKind::Document(m) => {
+            let file = bot.get_file(&m.document.file.id).await?;
+            file
+        }
+        MediaKind::Audio(m) => {
+            let file = bot.get_file(&m.audio.file.id).await?;
+            file
+        }
+        MediaKind::VideoNote(m) => {
+            let file = bot.get_file(&m.video_note.file.id).await?;
+            file
+        }
+        _ => {
+            bot.send_message(
+                chat_id,
+                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
+            )
+            .await?;
+
+            return Err(BotErr::from(""));
+        }
+    };
+
+    Ok(file)
 }

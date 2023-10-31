@@ -3,14 +3,10 @@ mod helpers;
 mod markups;
 
 use bot_state::Config;
-use helpers::{file_tt, send_response_txt, url_tt};
+use helpers::{file_tt, get_file_from_msg, send_response_txt, txt_screening, url_tt};
 use markups::{select_words_options, start_options};
 use std::{collections::HashSet, sync::Arc};
-use teloxide::{
-    dispatching::dialogue::InMemStorage,
-    prelude::*,
-    types::{MediaKind, MessageKind},
-};
+use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), BotErr>;
@@ -71,40 +67,10 @@ async fn start_handler(
     let chat_id = msg.chat.id;
 
     let Some(txt) = msg.text() else {
-        let MessageKind::Common(common_msg) = &msg.kind else {
-            bot.send_message(
-                chat_id,
-                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
-            )
-            .await?;
-
-            return Ok(());
-        };
-
-        let file = match &common_msg.media_kind {
-            MediaKind::Video(m) => {
-                let file = bot.get_file(&m.video.file.id).await.unwrap();
-                file
-            }
-            MediaKind::Voice(m) => {
-                let file = bot.get_file(&m.voice.file.id).await.unwrap();
-                file
-            }
-            MediaKind::Document(m) => {
-                let file = bot.get_file(&m.document.file.id).await.unwrap();
-                file
-            }
-            _ => {
-                bot.send_message(
-                    chat_id,
-                    "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
-                )
-                .await?;
-                return Ok(());
-            }
-        };
+        let file = get_file_from_msg(&bot, &msg).await?;
 
         let response = file_tt(&file.path, &bot, &msg, &app_data).await?;
+        let response = txt_screening(&response);
 
         send_response_txt(&response, &bot, &msg).await?;
 
@@ -137,6 +103,7 @@ async fn start_handler(
     }
 
     let response = url_tt(txt, &bot, &msg, &app_data).await?;
+    let response = txt_screening(&response);
 
     send_response_txt(&response, &bot, &msg).await?;
 
@@ -199,6 +166,8 @@ async fn words_highlight_handler(
 
     let response = if let Some(txt) = msg.text() {
         if txt == "Назад" {
+            dialogue.update(State::Start).await?;
+
             bot.send_message(
                 chat_id,
                 "Отправь мне ссылку на видео из VK/YouTube, а я переведу речь из видео в текст",
@@ -211,50 +180,12 @@ async fn words_highlight_handler(
 
         url_tt(txt, &bot, &msg, &app_data).await?
     } else {
-        let MessageKind::Common(common_msg) = &msg.kind else {
-            bot.send_message(
-                chat_id,
-                "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
-            )
-            .await?;
-
-            return Ok(());
-        };
-
-        let file = match &common_msg.media_kind {
-            MediaKind::Video(m) => {
-                let file = bot.get_file(&m.video.file.id).await.unwrap();
-                file
-            }
-            MediaKind::Voice(m) => {
-                let file = bot.get_file(&m.voice.file.id).await.unwrap();
-                file
-            }
-            MediaKind::Document(m) => {
-                let file = bot.get_file(&m.document.file.id).await.unwrap();
-                file
-            }
-            MediaKind::Audio(m) => {
-                let file = bot.get_file(&m.audio.file.id).await.unwrap();
-                file
-            }
-            MediaKind::VideoNote(m) => {
-                let file = bot.get_file(&m.video_note.file.id).await.unwrap();
-                file
-            }
-            _ => {
-                bot.send_message(
-                    chat_id,
-                    "Отправь мне гс/кружок/аудиофайл/видеофайл/ссылку на видео из VK/YouTube",
-                )
-                .await?;
-
-                return Ok(());
-            }
-        };
+        let file = get_file_from_msg(&bot, &msg).await?;
 
         file_tt(&file.path, &bot, &msg, &app_data).await?
     };
+
+    let response = txt_screening(&response);
 
     // highlight words
     let mut resp_words: Vec<String> = response.split(' ').map(|w| w.to_string()).collect();
